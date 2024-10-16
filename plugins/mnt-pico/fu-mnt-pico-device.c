@@ -10,7 +10,6 @@
 
 #include "fu-mnt-pico-common.h"
 #include "fu-mnt-pico-device.h"
-#include "fu-mnt-pico-struct.h"
 
 struct _FuMntPicoDevice {
 	FuUsbDevice parent_instance;
@@ -24,13 +23,6 @@ struct _FuMntPicoDevice {
 
 G_DEFINE_TYPE(FuMntPicoDevice, fu_mnt_pico_device, FU_TYPE_USB_DEVICE)
 
-static void
-fu_mnt_pico_device_to_string(FuDevice *device, guint idt, GString *str)
-{
-	FuMntPicoDevice *self = FU_MNT_PICO_DEVICE(device);
-	fwupd_codec_string_append_hex(str, idt, "HI_TODO", 1);
-}
-
 static gboolean
 fu_mnt_pico_device_reset_into_bootsel(FuDevice *device, GError **error)
 {
@@ -38,17 +30,17 @@ fu_mnt_pico_device_reset_into_bootsel(FuDevice *device, GError **error)
 
 	guint16 reset_interface = 2; // TODO
 
-	FuUsbDeviceClaimFlags flags = 0;
+	GUsbDeviceClaimInterfaceFlags flags = 0;
 
-	if (!fu_usb_device_claim_interface(FU_USB_DEVICE(device), reset_interface, flags, error)) {
-		g_prefix_error(error, "failed to claim HID interface: ");
+	if (!g_usb_device_claim_interface(fu_usb_device_get_dev(FU_USB_DEVICE(device)), reset_interface, flags, error)) {
+		g_prefix_error(error, "failed to claim reset interface: ");
 		return FALSE;
 	}
 
-	if (!fu_usb_device_control_transfer(FU_USB_DEVICE(device),
-					    FU_USB_DIRECTION_HOST_TO_DEVICE, // direction
-					    FU_USB_REQUEST_TYPE_CLASS,	     // request_type
-					    FU_USB_RECIPIENT_INTERFACE,	     // recipient
+	if (!g_usb_device_control_transfer(fu_usb_device_get_dev(FU_USB_DEVICE(device)),
+					    G_USB_DEVICE_DIRECTION_HOST_TO_DEVICE, // direction
+					    G_USB_DEVICE_REQUEST_TYPE_CLASS,	     // request_type
+					    G_USB_DEVICE_RECIPIENT_INTERFACE,	     // recipient
 					    RESET_REQUEST_BOOTSEL,	     // request
 					    0,				     // value
 					    reset_interface,		     // idx
@@ -58,7 +50,7 @@ fu_mnt_pico_device_reset_into_bootsel(FuDevice *device, GError **error)
 					    2000,
 					    NULL,
 					    &error_local)) {
-		if (g_error_matches(error_local, FWUPD_ERROR, FWUPD_ERROR_READ)) {
+		if (g_error_matches(error_local, G_USB_DEVICE_ERROR, G_USB_DEVICE_ERROR_IO)) {
 			g_debug("ignoring expected error %s", error_local->message);
 		} else {
 			g_propagate_prefixed_error(error,
@@ -74,8 +66,6 @@ fu_mnt_pico_device_reset_into_bootsel(FuDevice *device, GError **error)
 static gboolean
 fu_mnt_pico_device_detach(FuDevice *device, FuProgress *progress, GError **error)
 {
-	FuMntPicoDevice *self = FU_MNT_PICO_DEVICE(device);
-
 	if (!fu_mnt_pico_device_reset_into_bootsel(device, error))
 		return FALSE;
 
@@ -86,8 +76,6 @@ fu_mnt_pico_device_detach(FuDevice *device, FuProgress *progress, GError **error
 static gboolean
 fu_mnt_pico_device_setup(FuDevice *device, GError **error)
 {
-	FuMntPicoDevice *self = FU_MNT_PICO_DEVICE(device);
-
 	/* FuUsbDevice->setup */
 	if (!FU_DEVICE_CLASS(fu_mnt_pico_device_parent_class)->setup(device, error)) {
 		return FALSE;
@@ -119,10 +107,9 @@ fu_mnt_pico_device_init(FuMntPicoDevice *self)
 	fu_device_add_protocol(FU_DEVICE(self), "com.microsoft.uf2");
 	fu_device_add_flag(FU_DEVICE(self), FWUPD_DEVICE_FLAG_UPDATABLE);
 	fu_device_add_flag(FU_DEVICE(self), FWUPD_DEVICE_FLAG_UNSIGNED_PAYLOAD);
-	fu_device_add_private_flag(FU_DEVICE(self), FU_DEVICE_PRIVATE_FLAG_ADD_COUNTERPART_GUIDS);
-	fu_device_add_private_flag(FU_DEVICE(self), FU_DEVICE_PRIVATE_FLAG_REPLUG_MATCH_GUID);
-	fu_device_add_private_flag(FU_DEVICE(self), FU_DEVICE_PRIVATE_FLAG_ONLY_WAIT_FOR_REPLUG);
-	fu_device_add_private_flag(FU_DEVICE(self), FU_DEVICE_PRIVATE_FLAG_RETRY_OPEN);
+	fu_device_add_flag(FU_DEVICE(self), FWUPD_DEVICE_FLAG_ADD_COUNTERPART_GUIDS);
+	fu_device_add_internal_flag(FU_DEVICE(self), FU_DEVICE_INTERNAL_FLAG_REPLUG_MATCH_GUID);
+	fu_device_add_internal_flag(FU_DEVICE(self), FU_DEVICE_INTERNAL_FLAG_RETRY_OPEN);
 	fu_device_add_icon(FU_DEVICE(self), "icon-name");
 	fu_device_retry_set_delay(FU_DEVICE(self), 1000);
 }
@@ -131,7 +118,6 @@ static void
 fu_mnt_pico_device_class_init(FuMntPicoDeviceClass *klass)
 {
 	FuDeviceClass *device_class = FU_DEVICE_CLASS(klass);
-	device_class->to_string = fu_mnt_pico_device_to_string;
 	device_class->setup = fu_mnt_pico_device_setup;
 	device_class->detach = fu_mnt_pico_device_detach;
 	device_class->set_progress = fu_mnt_pico_device_set_progress;
