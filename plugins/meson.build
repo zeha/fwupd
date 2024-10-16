@@ -83,6 +83,7 @@ plugins = {
   'logitech-scribe': false,
   'logitech-tap': false,
   'mediatek-scaler': false,
+  'mnt-pico': false,
   'modem-manager': false,
   'msr': false,
   'mtd': false,

@@ -1,0 +1,4 @@
+[USB\VID_1209&PID_6D07]
+Plugin = mnt_pico
+CounterpartGuid = BLOCK\VEN_2E8A&DEV_0003
+Flags = internal
